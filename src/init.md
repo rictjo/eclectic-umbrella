@@ -1,1 +1,1 @@
-# Drictory contains JS sources
+# sources
