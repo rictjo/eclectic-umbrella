@@ -1,2 +1,2 @@
 # didactic-umbrella
-Numerical computing in JavaScript using TF-JS
+Numerical computing and visualisations in JavaScript using TF-JS
