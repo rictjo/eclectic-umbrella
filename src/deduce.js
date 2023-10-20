@@ -175,6 +175,18 @@ function tf_sgn( a ) {
    return ( tf.tensor1d(s) )
 }
 
+function fat_tridiagonal ( sub , main , sup ) {
+   // sub , main , sup types... tf.tensor1d
+   sup = sup.arraySync();
+   sub = sub.arraySync();
+   const n_ = tf.reshape( tf.min( main.shape ) , [1] ).dataSync();
+   main = main.arraySync();
+   FAT = main.map( (w,i) =>
+         main.map( (v,j) =>
+           i==j ? w : j == i+1 & j<n_ ? sup[j-1]  : j == i-1 & j+1>0? sub[j] :0  )) ;
+   return ( tf.tensor2d(FAT) );
+}
+
 function diagonalize_tridiagonal( T ) {
    T = tf.tensor2d(T);
    T .print();
@@ -182,7 +194,7 @@ function diagonalize_tridiagonal( T ) {
    ai = matrixToVector( T.arraySync() , ishift = 0 )
    bi = matrixToVector( T.arraySync() , ishift = 1 )
    console.log( tf.sqrt( bi.mul(ci) ).dataSync() )
-   sym_subdiagonals = tf.sqrt( bi.mul(ci) ).mul( tf_sgn( bi ) )
+   sym_subdiagonals = tf.sqrt( tf.abs(bi.mul(ci)) ).mul( tf_sgn( bi ) )
    console.log( sym_subdiagonals.dataSync() )
 }
 
@@ -206,17 +218,11 @@ async function run() {
    console.log( "BEGIN HOUSEHOLDER");
    // NEED TYPE CHECKING
    let [P,A,QT] = householder_reduction ( tf.tensor2d(M).arraySync() );
-   //U.print()
-   A.print()
-   //console.log(A)
-   diagonalize_tridiagonal( A.arraySync() )
-   //VT.print()
-   //console.log( "K(=0)TH HOUSEHOLDER REDUCTION");
-   //kth_householder( tf.tensor2d(A) , 2 );
+   P .print()
+   A .print()
+   QT.print()
+   tf.dot( tf.dot(P,A),QT ).print()
    console.log( "END HOUSEHOLDER");
-
-   /*
-  */
 }
 
 run();
