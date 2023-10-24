@@ -1,78 +1,5 @@
 
-async function plotbar() {
-
-const data = [
-   { index: 'beer', value: 50 },
-   { index: 1, value: 100 },
-   { index: 'cheese', value: 150 },
-  ];
-
-// Render to visor
-const surface = { name: 'Bar chart', tab: 'Charts' };
-names = ['bar1','bar2','bar3']
-tfvis.render.barchart( surface, data , {color:['#ff0000','#0f0f00','#0000ff']} );
-
-const series = ['First', 'Mob','Zombies'];
-
-const serie1 = [] ;
-const serie2 = [] ;
-const serie3 = [] ;
-
-for (let i = 0; i < 100; i++) {
-  serie1[i] = {x:i, y:Math.random() * 100} ;
-  serie2[i] = {x:i, y:Math.random() * 100} ;
-  serie3[i] = {x:i, y:Math.random() * 100} ;
-}
-
-const scat_data = {values: [serie1, serie2, serie3 ], series:series}
-scat_surface = {name:'Scatter',tab:'Graphs'}
-tfvis.render.scatterplot(scat_surface, scat_data , { seriesColors: ['#ff0000','#0000ff','#f00ff0'] } );
-
-const h_data = {
-   values: [[4, 2, 8, 20], [1, 7, 2, 10], [3, 3, 20, 13]],
-   xTickLabels: ['cheese', 'pig', 'font'],
-   yTickLabels: ['speed', 'smoothness', 'dexterity', 'mana'],
-}
-
-// Render to visor
-const h_surface = { name: 'Heatmap w Custom Labels', tab: 'Charts' };
-tfvis.render.heatmap( h_surface, h_data, { colorMap:'viridis' } );
-// greyscale , blues, viridis
-
-const headers = [
-  'Col 1',
-  'Col Z',
-  'Col 3',
-];
-
-const t_values = [
-  [1, 2, 3],
-  ['4', '5', '6'],
-  ['<strong>7</strong>', true, false],
-];
-
-
-const t_surface = { name: 'Table', tab: 'Tables' };
-tfvis.render.table( t_surface, { headers, values:t_values } );
-
-const l_surface = { name: 'Lines' ,tab:'Graphs' } ;
-let l_values = [[
-  {x: 1, y: 20},
-  {x: 2, y: 30},
-  {x: 3, y: 15},
-  {x: 4, y: 12}],
-[
-  {x: 1, y: 10},
-  {x: 2, y: 5},
-  {x: 3, y: -5},
-  {x: 4, y: 20}],
-];
-tfvis.render.linechart( l_surface, { series:['s1','s2'] , values:l_values} ,
-	 {xLabel:"xXx",yLabel:'yYy' , seriesColors:['#FF0000','#00ff00']});
-
-}
-
-function determineMeanAndStddev(data) {
+function determineMeanAndStddev( data ) {
   const dataMean		= data.mean(0);
   const diffFromMean		= data.sub(dataMean);
   const squaredDiffFromMean	= diffFromMean.square();
@@ -84,25 +11,31 @@ function determineMeanAndStddev(data) {
 function standardizeTensor(data, dataMean, dataStd) {
   return data.sub(dataMean).div(dataStd);
 }
-//
+
+/*
+MY IMPETUOUS-GFA REPO CODES
+*/
 
 function index_value(C,i,j) {
-  var CS	= C.slice([i,j],[1,1]);
-  return ( tf.max(CS) );
+  let CS	= tf.max( C.slice([i,j],[1,1]) );
+  // LOOKS STRANGE BUT ONE LESS DATASYNC
+  // console.log( C.arraySync()[i][j]==tf.max(CS).dataSync() ); // ARGH...
+  return ( CS );
 }
 
 function kth_householder( A , k ) {
+  let [Pk,Ak,Qk] = tf.tidy( () => { // TIDY LINE NEEDED?
+  // THE ACUTAL DECOMPOSITION
   var B		= A ;
   var k0	= k ;
   var k1	= k+1 ;
   var Op5	= tf.scalar(0.5);
-  var s_	= index_value( B , k1 , k0 ) ;
-  var alpha	= tf.scalar( 2 * ( +  s_ < 0 ) - 1 ) ;
+  let s_	= index_value( B , k1 , k0 ) ;
+  var alpha	= tf.scalar( 2 ).mul( s_.less(tf.scalar(0.0)).toInt() ).sub(1);
   alpha = alpha.mul( tf.sqrt( tf.sum(B.transpose().slice([k0,k1],[1,-1]).square()) ) ) ;
   var r = tf.sqrt( Op5.mul( alpha.square().sub( alpha.mul(index_value(B,k1,k0)) ) ) );
-  //
   //		THIS COMING LINE NEEDS RETHINKING <<SYNC>>
-  var d = tf.reshape( tf.max( B.shape[0] ).sub(k1+1) , [1] ).dataSync();
+  var d = tf.max( B.shape[0] ).sub(k1+1).reshape([1]) .dataSync()	// ARGH...
   var v_ = tf.zeros([k1]) ;
   v_ = tf.concat( [v_ , tf.reshape( index_value(B,k1,k0).sub(alpha).mul(Op5).div(r) , [1] ) ], axis=0 );
   v_ = tf.concat( [v_,tf.reshape( Op5.div(r).mul(B.slice([k1+1,k0],[-1,1])), d ) ] , axis=0 )
@@ -112,41 +45,73 @@ function kth_householder( A , k ) {
      alpha	= tf.scalar( 2 * ( + index_value(B,k0,k1) < 0 ) - 1 ) ;
      alpha	= alpha.mul( tf.sqrt( tf.sum(B.slice([k0,k1],[1,-1]).square()) ) );
      r = tf.sqrt( Op5.mul( alpha.square().sub( alpha.mul(index_value(B,k0,k1)) ) ) );
-     //            THIS COMING LINE NEEDS RETHINKING <<SYNC>>
-     var p  = tf.reshape( tf.max( B.shape[1] ).sub(k1+1) , [1] ).dataSync();
+     //            THIS COMING LINE NEEDS RETHINKING <<SYNC>> EQUIVALENT WITH ABOVE
+     var p  = tf.reshape( tf.max( B.shape[1] ).sub(k1+1) , [1] ).dataSync();	// ARGH...
      var w_ = tf.zeros([k1]) ;
      w_ = tf.concat( [w_ , tf.reshape( index_value(B,k0,k1).sub(alpha).mul(Op5).div(r) , [1] ) ] , axis=0 );
      w_ = tf.concat( [w_ , tf.reshape( Op5.div(r).mul(B.slice([k0,k1+1],[1,-1]))    , p   ) ] )
      Qk = tf.eye( B.shape[1] ).sub( tf.scalar(2).mul( tf.outerProduct(w_,w_.transpose()) ) )
   }
   var Ak = tf.dot( tf.dot( Pk,B ),Qk );
+  return [Pk,Ak,Qk];
+
+  }); // EXIT TIDY
   //
   // NOT WITH ASYNC
   return [Pk,Ak,Qk] ;
 }
 
+function rich_rot( a , b ) { // TRY TO BUILD A TIDY FUNCTION
+    let R = tf.tidy( () => {
+        var c = tf.scalar(0);
+        var s = tf.scalar(0);
+        var r = tf.scalar(0);
+        if ( !( a==0 & b==0 ) ) {
+            r = tf.sqrt( a.mul(a) .add( b.mul(b) ) ) ;
+            if ( a .equal( 0 ) ) {
+                s = r.div( b ) ;
+            } else {
+                s = b.div( r ) ;
+                c = r.sub( s.mul(b) ) .div(a) ;
+            }
+        }
+        let cds = c.dataSync()[0]		// ARGH...
+        let nsd = s.mul(-1).dataSync()[0]	// ARGH...
+        let sds = s.dataSync()[0]		// ARGH...
+        let R = tf.tensor2d( [[cds,sds],[nsd,cds]]) ;
+        return R
+    });
+    return R ;
+}
+
 // export
 // async
 function householder_reduction ( M ) {
-    var A = tf.tensor2d(M) ;
-    var nlim =  tf.reshape( tf.max( A.shape[1] ) .sub(1) , [1] ).dataSync();
+    let [P,A_,QT] = tf.tidy( () => { // TIDIER MEM ?
+    // THE ACTUAL FUNCTION
+    const A = tf.tensor2d(M) ;
+    const nlim =  tf.reshape( tf.max( A.shape[1] ) .sub(1) , [1] ).dataSync(); // ARGH...
     if ( A.shape[0] < 2 )  {
         return ( A ) ;
     }
     let [P0,A0,Q0] = kth_householder( A , k=0 );
+    // console.log('ZEROTH:',A0.dataSync());
     if ( A.shape[0] == 2 ) {
         return ( [P0,A0,Q0] );
     }
     for (var k=1 ; k<nlim ; k++ ) {
         let [P1, A1, Q1] = kth_householder( A0 , k=k )
         A0 = A1
-        P0 = tf.dot( P0 , P1 )
-        Q0 = tf.dot( Q0 , Q1 )
+        P0 = tf.dot( P0 , P1 );
+        Q0 = tf.dot( Q0 , Q1 );
     }
-    var P = P0 ;
-    var A = A0 ;
-    var QT= Q0.transpose() ;
-    return ( [P,A,QT] );
+    var P  = P0 ;
+    var A_ = A0 ;
+    var QT = Q0.transpose() ;
+    return ( [P,A_,QT] );
+    });
+    // TIDY RETURNED
+    return ( [P,A_,QT] );
 }
 
 function listToMatrix( a ) {
@@ -157,7 +122,7 @@ function listToMatrix( a ) {
 }
 
 function matrixToVector(M,ishift=0) {
-    // TYPE CHECKING NEEDED
+    // TYPE CHECKING NEEDED. JS WHAT CAN YOU DO...
     A = tf.tensor2d(M);
     var n_ = tf.reshape( tf.min( A.shape ) , [1] ).dataSync();
     if ( ishift < 0 ) {
@@ -176,7 +141,7 @@ function tf_sgn( a ) {
 }
 
 function fat_tridiagonal ( sub , main , sup ) {
-   // sub , main , sup types... tf.tensor1d
+   // sub , main , sup are tf.tensor1d
    sup = sup.arraySync();
    sub = sub.arraySync();
    const n_ = tf.reshape( tf.min( main.shape ) , [1] ).dataSync();
@@ -188,15 +153,56 @@ function fat_tridiagonal ( sub , main , sup ) {
 }
 
 function diagonalize_tridiagonal( T ) {
+   if ( true ) {
+     console.log('BREAK')
+     const FT = [       [22         ,  -15.8338556, 0          , 0          , 0         ],
+                        [ -15.8338556, 11.9500151 , -4.1214752 , 0          , 0         ],
+                        [0          , -4.1214752 , 9.4409418  , -15.3210535, 0         ],
+                        [0          , 0          , -15.3210535, -11.0633421, -0.0000023],
+                        [0          , 0          , 0          , -0.0000023 ,  -6e-7     ]
+     ]
+     console.log( 'FT:' , FT )
+     console.log( "TEST FT>" )
+     let [ xx , yy , zz ] = householder_reduction( FT )
+     yy.print()
+     console.log( "BROKE" )
+   }
    T = tf.tensor2d(T);
-   T .print();
-   ci = matrixToVector( T.arraySync() , ishift =-1 )
-   ai = matrixToVector( T.arraySync() , ishift = 0 )
-   bi = matrixToVector( T.arraySync() , ishift = 1 )
-   console.log( tf.sqrt( bi.mul(ci) ).dataSync() )
-   sym_subdiagonals = tf.sqrt( tf.abs(bi.mul(ci)) ).mul( tf_sgn( bi ) )
-   console.log( sym_subdiagonals.dataSync() )
+   let tridiagonal = tf.linalg.bandPart( T , 1 , 1 ); // CLEANED T
+   //
+   ci = matrixToVector( T.arraySync() , ishift =-1 );
+   ai = matrixToVector( T.arraySync() , ishift = 0 );
+   bi = matrixToVector( T.arraySync() , ishift = 1 );
+
+   subsup_diagonals = tf.sqrt( tf.abs(bi.mul(ci)) ) .mul( tf_sgn( bi ) ) .mul( tf_sgn( ci ))
+   //
+   console.log('HERE AGAIN');
+   //
+   // FTRI = fat_tridiagonal( subsup_diagonals , ai , subsup_diagonals ) ;
+   FTRI = fat_tridiagonal( ci , ai , bi ) ;
+   FTRI .print()
+   tridiagonal.print();
+   subsup_diagonals.print();
+   //
+   /* THIS WILL CREATE NANS
+   let [ aa , bb , cc ] = householder_reduction( tridiagonal.arraySync() )
+   aa	.print()
+   bb	.print()
+   cc	.print()
+   */
+   let y = tf.linalg.gramSchmidt( FTRI );
+   console.log('ADDED')
+   y.print()
+   let [qt,rt] = tf.linalg.qr( tridiagonal ) ; // FTRI )
+   qt.print()
+   tf.dot(  y,FTRI ).print()
+   rt.print()
+   console.log( 'BACK AGAIN' )
 }
+
+function diagonalize_2b2( A ) {
+   return(tf.scalar(0));
+};
 
 async function run() {
   /*
@@ -212,9 +218,7 @@ async function run() {
      [  2, -6,  6,   5,  1],
      [  4,  5,  0,  -2,  2]
    ]
-
-   plotbar();
-   //console.log( SVDJS.SVD( M ) );
+   // console.log( SVDJS.SVD( M ) );
    console.log( "BEGIN HOUSEHOLDER");
    // NEED TYPE CHECKING
    let [P,A,QT] = householder_reduction ( tf.tensor2d(M).arraySync() );
@@ -222,7 +226,21 @@ async function run() {
    A .print()
    QT.print()
    tf.dot( tf.dot(P,A),QT ).print()
+   console.log( 'THIS THING NOW. NUMERICAL ACCURACY IS UNDERWHELMING' )
+   //console.log(A)
+   diagonalize_tridiagonal( A.arraySync() )// A.arraySync() )
+   //VT.print()
+   //console.log( "K(=0)TH HOUSEHOLDER REDUCTION");
+   //kth_householder( tf.tensor2d(A) , 2 );
    console.log( "END HOUSEHOLDER");
+   rt_ = tf.tensor2d( [  [3,1] , [5,10] ] );
+   console.log(rt_.arraySync()[0][0])
+   console.log(rt_.arraySync()[1][0])
+   let a = index_value(rt_,0,0);
+   let b = index_value(rt_,1,0);
+   rich_rot( a , b ).print()
+   rich_rot( tf.scalar(0) , b ).print()
+   diagonalize_2b2( rt_ ).print()
 }
 
 run();
