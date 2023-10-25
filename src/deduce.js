@@ -77,23 +77,28 @@ function kth_householder( A , k ) {
   return [Pk,Ak,Qk] ;
 }
 
+/*
+<RR 3 5
+(0.5144957554275269, 0.8574929257125441, 5.830951894845301)
+>
+*/
 function rich_rot( a , b ) { // TRY TO BUILD A TIDY FUNCTION
     let R = tf.tidy( () => {
         var c = tf.scalar(0);
         var s = tf.scalar(0);
         var r = tf.scalar(0);
-        if ( !( a==0 & b==0 ) ) {
+        if ( !( a.equal(tf.scalar(0)) & b.equal(tf.scalar(0)) ) ) {
             r = tf.sqrt( a.mul(a) .add( b.mul(b) ) ) ;
-            if ( a .equal( 0 ) ) {
+            if ( a .equal( tf.scalar(0) ).dataSync()[0] ) { // ARGH...
                 s = r.div( b ) ;
             } else {
                 s = b.div( r ) ;
                 c = r.sub( s.mul(b) ) .div(a) ;
             }
         }
-        let cds = c.dataSync()[0]		// ARGH...
-        let nsd = s.mul(-1).dataSync()[0]	// ARGH...
-        let sds = s.dataSync()[0]		// ARGH...
+        let cds = c.dataSync()[0]               // ARGH...
+        let nsd = s.mul(-1).dataSync()[0]       // ARGH...
+        let sds = s.dataSync()[0]               // ARGH...
         let R = tf.tensor2d( [[cds,sds],[nsd,cds]]) ;
         return R
     });
@@ -215,9 +220,44 @@ function diagonalize_tridiagonal( T ) {
    rt.print()
    console.log( 'BACK AGAIN' )
 }
-
-function diagonalize_2b2( A ) {
-   return(tf.scalar(0));
+function diagonalize_2b2( B , TOL = 1E-7 , maxiter=100 , bVerbose=false ) {
+    let [G_,M0,H_] = tf.tidy( () => { // TIDIER ?
+  // THE ACTUAL FUNCTION
+  let M         = B.slice([0,0],[2,2]);
+  let M0        = M ;
+  var error     = tf.scalar(1) ;
+  const maxit_  = maxiter;
+  let tolerance = tf.scalar(TOL) ;      // tf.scalar(1.0).div(tf.scalar(3.0)).square().print()
+  let G_        = tf.eye(2);
+  let H_        = tf.eye(2);
+  for ( var k = 0 ; k<maxit_ ; k++ ) {
+      // LEFT
+      let G0    = rich_rot( index_value(M0,0,0) , index_value(M0,1,0) );
+      M         = tf.dot(G0,M0) ;
+      G_        = tf.dot(G0,G_) ;
+      // RIGHT
+      M         = M.transpose();
+      let H0    = rich_rot( index_value(M,0,0) , index_value(M,1,0) );
+      M         = tf.dot(H0,M ) ;
+      H_        = tf.dot(H0,H_) ;
+      // BACK
+      M0        = M.transpose() ;
+      error     = tf.sqrt( index_value(M0,1,0).square() .add( index_value(M0,0,1).square() ) );
+      // THIS MUST BE DONE ...
+         if ( error.less( tolerance ).dataSync()[0] )  { // ARGH...
+            if (bVerbose) {
+               error.print()
+               tolerance.print()
+               console.log('TOLCHECK',  error.less( tolerance ).dataSync() )
+            }
+            break;
+         }
+      //
+  }
+  return [G_,M0,H_];
+  //RETURNED FROM TIDY
+  });
+  return [G_,M0,H_];
 };
 
 async function run() {
