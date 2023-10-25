@@ -173,53 +173,62 @@ function fat_tridiagonal ( sub , main , sup ) {
    return ( tf.tensor2d(FAT) );
 }
 
-function diagonalize_tridiagonal( T ) {
-   if ( true ) {
-     console.log('BREAK')
-     const FT = [       [22         ,  -15.8338556, 0          , 0          , 0         ],
-                        [ -15.8338556, 11.9500151 , -4.1214752 , 0          , 0         ],
-                        [0          , -4.1214752 , 9.4409418  , -15.3210535, 0         ],
-                        [0          , 0          , -15.3210535, -11.0633421, -0.0000023],
-                        [0          , 0          , 0          , -0.0000023 ,  -6e-7     ]
-     ]
-     console.log( 'FT:' , FT )
-     console.log( "TEST FT>" )
-     let [ xx , yy , zz ] = householder_reduction( FT )
-     yy.print()
-     console.log( "BROKE" )
+function skew_eye(shape) {
+   let BT = tf.tidy( () => {
+   // BUFFERS ARE MUTABLE. TENSORS ARE NOT
+   let nm = shape
+   var m0 = nm[0] <= nm[1] ? nm[0] : nm[1]
+   const buffer = tf.buffer(shape);
+   for ( var i=0 ; i<m0 ; i++ ) {
+      buffer.set( 1, i, i );
    }
-   T = tf.tensor2d(T);
-   let tridiagonal = tf.linalg.bandPart( T , 1 , 1 ); // CLEANED T
-   //
-   ci = matrixToVector( T.arraySync() , ishift =-1 );
-   ai = matrixToVector( T.arraySync() , ishift = 0 );
-   bi = matrixToVector( T.arraySync() , ishift = 1 );
-
-   subsup_diagonals = tf.sqrt( tf.abs(bi.mul(ci)) ) .mul( tf_sgn( bi ) ) .mul( tf_sgn( ci ))
-   //
-   console.log('HERE AGAIN');
-   //
-   // FTRI = fat_tridiagonal( subsup_diagonals , ai , subsup_diagonals ) ;
-   FTRI = fat_tridiagonal( ci , ai , bi ) ;
-   FTRI .print()
-   tridiagonal.print();
-   subsup_diagonals.print();
-   //
-   /* THIS WILL CREATE NANS
-   let [ aa , bb , cc ] = householder_reduction( tridiagonal.arraySync() )
-   aa	.print()
-   bb	.print()
-   cc	.print()
-   */
-   let y = tf.linalg.gramSchmidt( FTRI );
-   console.log('ADDED')
-   y.print()
-   let [qt,rt] = tf.linalg.qr( tridiagonal ) ; // FTRI )
-   qt.print()
-   tf.dot(  y,FTRI ).print()
-   rt.print()
-   console.log( 'BACK AGAIN' )
+   return ( buffer.toTensor() );
+   });
+   return ( BT );
 }
+
+function set_values( values , indices , shape ) {
+   let BT = tf.tidy( () => {
+   let nm = shape
+   var kl = indices
+   const buffer = tf.buffer(shape);
+   for ( var i=0 ; i<indices.length ; i++ ) {
+      buffer.set( values[i] , indices[i][0] , indices[i][1] );
+   }
+   return ( buffer.toTensor() );
+   });
+   return ( BT );
+}
+
+function diagonalize_tridiagonal( T ) {
+   S = tf.tensor2d( tridiagonal ).clone()
+   let nm = S.shape
+   var m0 = nm[0] <= nm[1] ? nm[0] : nm[1] - 1
+   sI = skew_eye ( [ nm[0] , nm[0] ] );
+   tI = skew_eye ( [ nm[1] , nm[1] ] );
+   zI = skew_eye ( nm );
+   // sI .print(); tI .print(); zI .print();
+   GI = tf.clone(sI) ;
+   HI = tf.clone(tI) ;
+   for ( var k=0 ; k<maxiter ; k++ ) {
+       for ( var i=0  ; i<m0 ; i++ ) {
+          sI_ = sI .clone() ;
+          tI_ = tI .clone() ;
+          A   = S.slice( [i,i] , [2,2] )
+          let [ G , Z , H ] = diagonalize_2b2 ( A , TOL=TOL );
+          sI_ = set_values( G.sub(tf.eye(2)).dataSync() , [[i,i],[i,i+1],[i+1,i],[i+1,i+1]] , sI_.shape  ).add(tf.eye( sI_.shape[0] ) )
+          tI_ = set_values( H.sub(tf.eye(2)).dataSync() , [[i,i],[i,i+1],[i+1,i],[i+1,i+1]] , tI_.shape  ).add(tf.eye( tI_.shape[0] ) )
+          GI = tf.dot( sI_ , GI )
+          HI = tf.dot( tI_ , HI )
+          console.log('---')
+          S = tf.dot( tf.dot( sI_ , S ) , tI_.transpose() )
+          // S.print();
+          console.log('---')
+          Z.print(); return
+       }
+   }
+}
+
 function diagonalize_2b2( B , TOL = 1E-7 , maxiter=100 , bVerbose=false ) {
     let [G_,M0,H_] = tf.tidy( () => { // TIDIER ?
   // THE ACTUAL FUNCTION
