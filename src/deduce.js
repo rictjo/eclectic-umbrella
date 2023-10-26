@@ -54,7 +54,7 @@ function kth_householder( A , k ) {
   var d = tf.max( B.shape[0] ).sub(k1+1).reshape([1]) .dataSync()	// ARGH...
   var v_ = tf.zeros([k1]) ;
   v_ = tf.concat( [v_ , tf.reshape( index_value(B,k1,k0).sub(alpha).mul(Op5).div(r) , [1] ) ], axis=0 );
-  v_ = tf.concat( [v_,tf.reshape( Op5.div(r).mul(B.slice([k1+1,k0],[-1,1])), d ) ] , axis=0 )
+  v_ = tf.concat( [v_ , tf.reshape( Op5.div(r).mul(B.slice([k1+1,k0],[-1,1])), d ) ] , axis=0 )
   var Pk = tf.eye( B.shape[0] ).sub( tf.scalar(2).mul( tf.outerProduct(v_,v_.transpose()) ) )
   var Qk = Pk
   if ( B.shape[0] != B.shape[1] ) {
@@ -82,6 +82,7 @@ function kth_householder( A , k ) {
 (0.5144957554275269, 0.8574929257125441, 5.830951894845301)
 >
 */
+
 function rich_rot( a , b ) { // TRY TO BUILD A TIDY FUNCTION
     let R = tf.tidy( () => {
         var c = tf.scalar(0);
@@ -107,16 +108,15 @@ function rich_rot( a , b ) { // TRY TO BUILD A TIDY FUNCTION
 
 // export
 // async
-function householder_reduction ( M ) {
-    let [P,A_,QT] = tf.tidy( () => { // TIDIER MEM ?
+function householder_reduction ( Mtf ) {
+    let [P,T,QT] = tf.tidy( () => { // TIDIER MEM ?
     // THE ACTUAL FUNCTION
-    const A = tf.tensor2d(M) ;
-    const nlim =  tf.reshape( tf.max( A.shape[1] ) .sub(1) , [1] ).dataSync(); // ARGH...
+    const A = Mtf ; //.clone() ;
+    const nlim = tf.reshape( tf.max( A.shape[1] ) .sub(1) , [1] ).dataSync(); // ARGH...
     if ( A.shape[0] < 2 )  {
         return ( A ) ;
     }
     let [P0,A0,Q0] = kth_householder( A , k=0 );
-    // console.log('ZEROTH:',A0.dataSync());
     if ( A.shape[0] == 2 ) {
         return ( [P0,A0,Q0] );
     }
@@ -132,7 +132,7 @@ function householder_reduction ( M ) {
     return ( [P,A_,QT] );
     });
     // TIDY RETURNED
-    return ( [P,A_,QT] );
+    return  [ P , T , QT ];
 }
 
 function listToMatrix( a ) {
@@ -206,7 +206,7 @@ function diagonalize_tridiagonal( tridiagonal , maxiter=1000 , TOL=1E-10 , maxi2
    //
    let [G,S,HT] = tf.tidy( () => {
 
-   let S = tf.tensor2d( tridiagonal ).clone()
+   let S = tridiagonal.clone()
    let nm = S.shape
    var m0 = nm[0] <= nm[1] ? nm[0] : nm[1] - 1
    sI = skew_eye ( [ nm[0] , nm[0] ] );
@@ -255,8 +255,8 @@ function diagonalize_tridiagonal( tridiagonal , maxiter=1000 , TOL=1E-10 , maxi2
 function nativeSVD( M ) {
     // NOTE THAT THIS IS SLOW
     let [ U , S , VT ] = tf.tidy( () => { // TIDIER ?
-    let [ P , A , QT ] = householder_reduction ( tf.tensor2d(M).arraySync() );
-    let [ G , S , HT ] = diagonalize_tridiagonal( A.arraySync() )
+    let [ P , A , QT ] = householder_reduction ( M );
+    let [ G , S , HT ] = diagonalize_tridiagonal( A )
     return [tf.dot(P,G),S,tf.dot(QT,HT)];
   });
   return [U,S,VT];
@@ -265,7 +265,7 @@ function nativeSVD( M ) {
 function nativePCA( data_tf , axis=0 ) {
    res = determineMeanAndStddev( data_tf ,  axis=axis )
    std_dat = standardizeTensor( data_tf, res['dataMean'], res['dataStd'] )
-   let [feature_coordinates,singular_values,components] = nativeSVD( std_dat.arraySync() )
+   let [feature_coordinates,singular_values,components] = nativeSVD( std_dat )
    components = components.transpose()
    return { feature_coordinates , singular_values , components };
 }
@@ -310,6 +310,46 @@ function diagonalize_2b2( B , TOL = 1E-7 , maxiter=100 , bVerbose=false ) {
   return [G_,M0,H_];
 };
 
+
+function LZRU( tridiagonal ) {
+    let [ L,Z,R,U ] = tf.tidy( () => { // TIDIER ?
+   // U = ZR
+   let AS = tridiagonal.arraySync();
+   var vk = 0 ; var bk = 0 ; var lk = 0; var dk = 0;
+   var l = []; var v = []; var o = [];
+
+   b = tf.tensor1d( matrixToVector( AS ,  0 ).dataSync() )
+   c = tf.tensor1d( matrixToVector( AS ,  1 ).dataSync() )
+   a = tf.tensor1d( matrixToVector( AS , -1 ).dataSync() )
+
+   a_ = a.dataSync();
+   b_ = b.dataSync();
+   c_ = c.dataSync();
+
+   vp = b_[0] ; v.push(vp)
+   for ( var i=0 ; i<a_.length ; i++ ) { // LU DECOMPOSITION
+      bk = b_[ i+1 ]; lk = a_[i]/vp;
+      vk = bk - lk * c_[i];
+      l .push( lk ); v .push( vk ); o .push(1);
+      vp = vk ;
+   }
+   o.push(1);
+
+   let main_ = tf.tensor1d( v );
+   let sub_  = tf.tensor1d( l );
+   let maino = tf.tensor1d( o );
+   let sup_  = c ;
+   let D_    = main_ ;
+   let B_    = c.slice([0],[a_.length]).div(D_.slice([0],[a_.length]));
+   let S = fat_tridiagonal ( sub_.mul(0) , D_ , sup_.mul(0) );
+   let R = fat_tridiagonal ( sub_.mul(0) , maino , B_ )      ;
+   let L = fat_tridiagonal ( sub_ , maino , sup_.mul(0) )    ;
+   let U = fat_tridiagonal ( sub_.mul(0) , main_ , c )       ;
+   return [L,S,R,U];
+   });
+   return [L,Z,R,U];
+}
+
 async function run() {
   /*
      HOUSEHOLDER, SVD, PCA
@@ -324,29 +364,30 @@ async function run() {
      [  2, -6,  6,   5,  1],
      [  4,  5,  0,  -2,  2]
    ]
-   // console.log( SVDJS.SVD( M ) );
-   console.log( "BEGIN HOUSEHOLDER");
    // NEED TYPE CHECKING
-   let [P,A,QT] = householder_reduction ( tf.tensor2d(M).arraySync() );
-   P .print()
-   A .print()
-   QT.print()
-   tf.dot( tf.dot(P,A),QT ).print()
-   console.log( 'THIS THING NOW. NUMERICAL ACCURACY IS UNDERWHELMING' )
-   //console.log(A)
-   diagonalize_tridiagonal( A.arraySync() )// A.arraySync() )
-   //VT.print()
-   //console.log( "K(=0)TH HOUSEHOLDER REDUCTION");
-   //kth_householder( tf.tensor2d(A) , 2 );
-   console.log( "END HOUSEHOLDER");
-   rt_ = tf.tensor2d( [  [3,1] , [5,10] ] );
-   console.log(rt_.arraySync()[0][0])
-   console.log(rt_.arraySync()[1][0])
-   let a = index_value(rt_,0,0);
-   let b = index_value(rt_,1,0);
-   rich_rot( a , b ).print()
-   rich_rot( tf.scalar(0) , b ).print()
-   diagonalize_2b2( rt_ ).print()
+   Mtf = tf.tensor2d(M)
+   let [ P , A , QT ] = householder_reduction ( Mtf );
+   let [L,Z,R,U] = LZRU( A )
+   A.print()
+
+   tf.dot(L,U).print() // THIS IS OK
+   A.print()
+   tf.dot( tf.dot( L  , Z) , R ) .print() // THIS IS OK
+   tf.dot( tf.dot( tf.dot( tf.dot( tf.dot( P , skew_eye( Mtf.shape )) , L ) , Z ) , R ) , QT ).print() // FULL RECOVERY
+
+   const safe_palette = [ '#193CBC' , '#1473AF' , '#589ACF' , '#EEE762' , '#E8B84F' , '#EA594E' ];
+
+   rpca = nativePCA( Mtf )
+   const series = [ 'PCA' ]; const serien = [];
+   var rezz = rpca['components'].slice([0,0],[-1,2]).arraySync()
+   for ( var i=0 ; i<rezz.length ; i++ ) {
+      serien[i] =  {'x':rezz[i][0],'y':rezz[i][1]}
+   }
+   const scat_data = {values: [ serien ], series:series}
+   scat_surface = {name:'PCA',tab:'Graphs'}
+   tfvis.render.scatterplot( scat_surface , scat_data ,
+	{ seriesColors: [ '#ff0000' ] , xLabel:"C0" , yLabel:'C1' , width:500 , heigth:500 } );
+
 }
 
 run();
