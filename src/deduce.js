@@ -200,33 +200,74 @@ function set_values( values , indices , shape ) {
    return ( BT );
 }
 
-function diagonalize_tridiagonal( T ) {
-   S = tf.tensor2d( tridiagonal ).clone()
+function diagonalize_tridiagonal( tridiagonal , maxiter=1000 , TOL=1E-10 , maxi22=100 , TOL22=1E-8 ) {
+   //
+   // THIS IS A SLOW WAY OF DIAGONALIZING A TRIDIAGONAL MATRIX
+   //
+   let [G,S,HT] = tf.tidy( () => {
+
+   let S = tf.tensor2d( tridiagonal ).clone()
    let nm = S.shape
    var m0 = nm[0] <= nm[1] ? nm[0] : nm[1] - 1
    sI = skew_eye ( [ nm[0] , nm[0] ] );
    tI = skew_eye ( [ nm[1] , nm[1] ] );
    zI = skew_eye ( nm );
-   // sI .print(); tI .print(); zI .print();
-   GI = tf.clone(sI) ;
-   HI = tf.clone(tI) ;
+   let GI = tf.clone(sI) ;
+   let HI = tf.clone(tI) ;
    for ( var k=0 ; k<maxiter ; k++ ) {
-       for ( var i=0  ; i<m0 ; i++ ) {
-          sI_ = sI .clone() ;
-          tI_ = tI .clone() ;
-          A   = S.slice( [i,i] , [2,2] )
-          let [ G , Z , H ] = diagonalize_2b2 ( A , TOL=TOL );
-          sI_ = set_values( G.sub(tf.eye(2)).dataSync() , [[i,i],[i,i+1],[i+1,i],[i+1,i+1]] , sI_.shape  ).add(tf.eye( sI_.shape[0] ) )
-          tI_ = set_values( H.sub(tf.eye(2)).dataSync() , [[i,i],[i,i+1],[i+1,i],[i+1,i+1]] , tI_.shape  ).add(tf.eye( tI_.shape[0] ) )
-          GI = tf.dot( sI_ , GI )
-          HI = tf.dot( tI_ , HI )
-          console.log('---')
-          S = tf.dot( tf.dot( sI_ , S ) , tI_.transpose() )
-          // S.print();
-          console.log('---')
-          Z.print(); return
-       }
+      for ( var i=0  ; i<m0 ; i++ ) {
+         sI_ = sI .clone() ;
+         tI_ = tI .clone() ;
+         A   = S.slice( [i,i] , [2,2] )
+         let [G,Z,H] = diagonalize_2b2 ( A , TOL=TOL );
+         sI_ = set_values( G.sub(tf.eye(2)).dataSync() , [[i,i],[i,i+1],[i+1,i],[i+1,i+1]] , sI_.shape  ).add(tf.eye( sI_.shape[0] ) )
+         tI_ = set_values( H.sub(tf.eye(2)).dataSync() , [[i,i],[i,i+1],[i+1,i],[i+1,i+1]] , tI_.shape  ).add(tf.eye( tI_.shape[0] ) )
+         GI  = tf.dot( sI_ , GI )
+         HI  = tf.dot( tI_ , HI )
+         S = tf.dot( tf.dot( sI_ , S ) , tI_.transpose() )
+         var n = m0 + 1 - i ;
+         ran = tf.range(2,n).dataSync(); // ARGH ...
+         for ( var jr=0 ; jr<ran.length ; jr++ ) {
+            BS = S.bufferSync() ;
+            var ii      = i;
+            var jj      = i + ran[jr];
+            var idx     = [ [ii,ii] , [ii,jj] , [jj,ii] , [jj,jj] ];
+            var jdx     = [ (0,0),(0,1),(1,0),(1,1) ];
+            A_ = tf.tensor2d( [ BS.get(ii,ii) , BS.get(ii,jj) , BS.get(jj,ii), BS.get(jj,jj)] , [2,2] )
+            let [G,Z,H] = diagonalize_2b2 ( A_ , maxiter=maxi22, TOL=TOL22 );
+            sI_ = set_values( G.sub(tf.eye(2)).dataSync() , idx , sI_.shape  ).add(tf.eye( sI_.shape[0] ) ); // ARGH ...
+            tI_ = set_values( H.sub(tf.eye(2)).dataSync() , idx , tI_.shape  ).add(tf.eye( tI_.shape[0] ) ); // ARGH ...
+            GI = tf.dot( sI_ , GI ); // FIRST PASS OK
+            HI = tf.dot( tI_ , HI ); // FIRST PASS OK
+            S  = tf.dot( tf.dot( sI_ , S ) , tI_.transpose() );
+         };
+      }
+      var error = tf.sum(  matrixToVector( S.arraySync(), ishift=1 ).square().add( matrixToVector( S.arraySync(), ishift=-1 ).square() )  )
+      if ( error < TOL ) {
+          break;
+      }
    }
+   return [ GI.transpose(),S,HI ] ;
+   });
+   return [  G,S,HT ] ;
+}
+
+function nativeSVD( M ) {
+    // NOTE THAT THIS IS SLOW
+    let [ U , S , VT ] = tf.tidy( () => { // TIDIER ?
+    let [ P , A , QT ] = householder_reduction ( tf.tensor2d(M).arraySync() );
+    let [ G , S , HT ] = diagonalize_tridiagonal( A.arraySync() )
+    return [tf.dot(P,G),S,tf.dot(QT,HT)];
+  });
+  return [U,S,VT];
+}
+
+function nativePCA( data_tf , axis=0 ) {
+   res = determineMeanAndStddev( data_tf ,  axis=axis )
+   std_dat = standardizeTensor( data_tf, res['dataMean'], res['dataStd'] )
+   let [feature_coordinates,singular_values,components] = nativeSVD( std_dat.arraySync() )
+   components = components.transpose()
+   return { feature_coordinates , singular_values , components };
 }
 
 function diagonalize_2b2( B , TOL = 1E-7 , maxiter=100 , bVerbose=false ) {
