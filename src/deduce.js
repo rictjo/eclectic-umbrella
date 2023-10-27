@@ -311,6 +311,38 @@ function diagonalize_2b2( B , TOL = 1E-7 , maxiter=100 , bVerbose=false ) {
 };
 
 
+function qrSVD( A , maxiter=-100 , TOL=1E-5 ) {
+    let [ U,S,VT ] = tf.tidy( () => { // TIDIER ?
+
+   if(maxiter<0) {
+      maxiter = 1*A.shape[0]*A.shape[1]
+   }
+   let [Q_,R_] = tf.linalg.qr( A );
+   let [rQ,rR] = tf.linalg.qr( R_ );
+   let [lQ,lR] = tf.linalg.qr( rR.transpose() );
+   A = lR.transpose()
+   let signs = tf.diag( tf_sgn( matrixToVector(A.arraySync()) ) )
+   A = tf.dot(A, tf.diag( tf_sgn( matrixToVector(A.arraySync()) ) ) )
+   let [Left,Right] = [ tf.dot(Q_,rQ) , tf.dot(signs,lQ.transpose()) ];
+   for( var i=0 ; i<maxiter ; i++ ) {
+      [Q_,R_] = tf.linalg.qr( A ) ;
+      [rQ,rR] = tf.linalg.qr( R_ );
+      [lQ,lR] = tf.linalg.qr( rR.transpose() );
+      A       = lR.transpose( ) ;
+      Left    = tf.dot(Left,tf.dot(Q_,rQ)) ;
+      Right   = tf.dot(lQ.transpose(),Right ) ;
+      var error = tf.sum(  matrixToVector( A.arraySync(), ishift=1 ).square().add( matrixToVector( A.arraySync(), ishift=-1 ).square() )  )
+      if ( error < TOL ) {
+          console.log('converged')
+          break;
+      }
+   }
+   return[Left,A,Right];
+
+   });
+   return[U,S,VT];
+}
+
 function LZRU( tridiagonal ) {
     let [ L,Z,R,U ] = tf.tidy( () => { // TIDIER ?
    // U = ZR
