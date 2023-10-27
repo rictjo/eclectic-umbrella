@@ -320,9 +320,9 @@ function qrSVD( A , maxiter=-100 , TOL=1E-5 ) {
    let [Q_,R_] = tf.linalg.qr( A );
    let [rQ,rR] = tf.linalg.qr( R_ );
    let [lQ,lR] = tf.linalg.qr( rR.transpose() );
-   A = lR.transpose()
-   let signs = tf.diag( tf_sgn( matrixToVector(A.arraySync()) ) )
-   A = tf.dot(A, tf.diag( tf_sgn( matrixToVector(A.arraySync()) ) ) )
+   A = lR.transpose();
+   let signs = tf.diag( tf_sgn( matrixToVector(A.arraySync()) ) ); // ARGH ...
+   A = tf.dot(A, signs);
    let [Left,Right] = [ tf.dot(Q_,rQ) , tf.dot(signs,lQ.transpose()) ];
    for( var i=0 ; i<maxiter ; i++ ) {
       [Q_,R_] = tf.linalg.qr( A ) ;
