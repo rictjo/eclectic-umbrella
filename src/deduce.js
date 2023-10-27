@@ -270,6 +270,14 @@ function nativePCA( data_tf , axis=0 ) {
    return { feature_coordinates , singular_values , components };
 }
 
+function qrPCA( data_tf , axis=0 ) {
+   res = determineMeanAndStddev( data_tf ,  axis=axis )
+   std_dat = standardizeTensor( data_tf, res['dataMean'], res['dataStd'] )
+   let [feature_coordinates,singular_values,components] = qrSVD( std_dat )
+   components = components.transpose()
+   return { feature_coordinates , singular_values , components };
+}
+
 function diagonalize_2b2( B , TOL = 1E-7 , maxiter=100 , bVerbose=false ) {
     let [G_,M0,H_] = tf.tidy( () => { // TIDIER ?
   // THE ACTUAL FUNCTION
