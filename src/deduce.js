@@ -368,7 +368,7 @@ function LZRU( tridiagonal ) {
 
    vp = b_[0] ; v.push(vp)
    for ( var i=0 ; i<a_.length ; i++ ) { // LU DECOMPOSITION
-      bk = b_[ i+1 ]; lk = a_[i]/vp;
+      bk = b_[ i+1 ]; lk = vp==0 ? 0 : a_[i]/vp ;
       vk = bk - lk * c_[i];
       l .push( lk ); v .push( vk ); o .push(1);
       vp = vk ;
