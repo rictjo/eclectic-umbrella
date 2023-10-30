@@ -31,8 +31,13 @@ function standardizeTensor(data, dataMean, dataStd) {
 MY IMPETUOUS-GFA REPO CODES
 https://github.com/richardtjornhammar/impetuous/blob/master/src/impetuous/quantification.py
 */
+
 function ranktensor1d ( data , ascending = true ) {
-    return ( ranktensor2d ( tf.tensor2d( data.dataSync() , shape=[data.shape[0],1]) ) )
+    let ind = ranktensor2d ( tf.tensor2d(data.dataSync(),shape=[data.shape[0],1]) )
+    if ( ascending ) {
+        return( ind.reverse() )
+    }
+    return ( ind )
 }
 
 function ranktensor2d ( data_ , axis = 1 , position = 0 ,
