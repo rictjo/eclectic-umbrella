@@ -31,6 +31,35 @@ function standardizeTensor(data, dataMean, dataStd) {
 MY IMPETUOUS-GFA REPO CODES
 https://github.com/richardtjornhammar/impetuous/blob/master/src/impetuous/quantification.py
 */
+function indices_of_ranks ( data , axis=0 , pos = -1 ) {
+   if ( axis==0 ) {
+     let indexOFranks = tf.topk( Mtf.transpose() , Mtf.shape[axis] ).indices.transpose()
+     return indexOFranks ;
+   } else {
+     let indexOFranks = tf.topk( Mtf , Mtf.shape[axis] ).indices
+     return indexOFranks ;
+   }
+}
+
+function rankdata( data , axis=0 ) {
+    let idxOranks = indices_of_ranks( data , axis=axis )
+    var dat_ = idxOranks.dataSync();
+    var m_   = idxOranks.shape[0];
+    var n_   = idxOranks.shape[1];
+    var k_   = dat_.length;
+    const buffer = tf.buffer( idxOranks.shape );
+    if ( axis==0 ) {
+      for ( var i=0 ; i<k_ ; i++ ) { // orders outward to inward -> 2d means row major order
+        buffer.set(  ( Math.floor(i/n_) ) %m_ , dat_[i] ,  i%n_  );
+      }
+      return ( buffer.toTensor() )
+    } else {
+      for ( var i=0 ; i<k_ ; i++ ) { // orders outward to inward -> 2d means row major order
+        buffer.set( i%n_ ,  Math.floor(i/n_) %m_ , dat_[i] );
+      }
+      return ( buffer.toTensor() )
+    }
+}
 
 function ranktensor1d ( data , ascending = true ) {
     let ind = ranktensor2d ( tf.tensor2d(data.dataSync(),shape=[data.shape[0],1]) )
