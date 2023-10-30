@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
+//
 function determineMeanAndStddev( data ) {
   const dataMean		= data.mean(0);
   const diffFromMean		= data.sub(dataMean);
@@ -26,19 +26,33 @@ function determineMeanAndStddev( data ) {
 function standardizeTensor(data, dataMean, dataStd) {
   return data.sub(dataMean).div(dataStd);
 }
-
+//
+/*
+MY IMPETUOUS-GFA REPO CODES
+https://github.com/richardtjornhammar/impetuous/blob/master/src/impetuous/quantification.py
+*/
+function correlation ( xs , ys , axis=0, axism=1, TOL=1E-12 ){
+  let corr = tf.tidy( () => {
+   let xm  = xs .mean( axis )
+   let ym  = ys .mean( axis )
+   let xms = xs.sub( xm )
+   let yms = ys.sub( ym )
+   let r = tf.dot(yms,xms.transpose()) .div(  tf.sqrt( tf.outerProduct( yms.mul(yms).sum(axis=axism) , xms.mul(xms).sum(axism) ) ) )
+   return r;
+   });
+   return corr;
+}
 /*
 MY IMPETUOUS-GFA REPO CODES
 https://github.com/richardtjornhammar/impetuous/blob/master/src/impetuous/reducer.py
 */
-
 function index_value(C,i,j) {
   let CS	= tf.max( C.slice([i,j],[1,1]) );
   // LOOKS STRANGE BUT ONE LESS DATASYNC
   // console.log( C.arraySync()[i][j]==tf.max(CS).dataSync() ); // ARGH...
   return ( CS );
 }
-
+//
 function kth_householder( A , k ) {
   let [Pk,Ak,Qk] = tf.tidy( () => { // TIDY LINE NEEDED?
   // THE ACUTAL DECOMPOSITION
@@ -70,19 +84,17 @@ function kth_householder( A , k ) {
   }
   var Ak = tf.dot( tf.dot( Pk,B ),Qk );
   return [Pk,Ak,Qk];
-
+  //
   }); // EXIT TIDY
   //
   // NOT WITH ASYNC
   return [Pk,Ak,Qk] ;
 }
-
 /*
 <RR 3 5
 (0.5144957554275269, 0.8574929257125441, 5.830951894845301)
 >
 */
-
 function rich_rot( a , b ) { // TRY TO BUILD A TIDY FUNCTION
     let R = tf.tidy( () => {
         var c = tf.scalar(0);
@@ -105,7 +117,6 @@ function rich_rot( a , b ) { // TRY TO BUILD A TIDY FUNCTION
     });
     return R ;
 }
-
 // export
 // async
 function householder_reduction ( Mtf ) {
@@ -318,7 +329,6 @@ function diagonalize_2b2( B , TOL = 1E-7 , maxiter=100 , bVerbose=false ) {
   return [G_,M0,H_];
 };
 
-
 function qrSVD( A , maxiter=-100 , TOL=1E-5 ) {
     let [ U,S,VT ] = tf.tidy( () => { // TIDIER ?
 
@@ -390,10 +400,21 @@ function LZRU( tridiagonal ) {
    return [L,Z,R,U];
 }
 
+function luVD( Matrix ) { // NOT USEFUL BUT FAST
+    let [ U,S,VT ] = tf.tidy( () => {
+       let [ P , A , QT ] = householder_reduction ( Matrix );
+       let [ L , Z , R , W ] = LZRU( A )
+       let U  = tf.dot( tf.dot( P , skew_eye( Matrix.shape )) , L )
+       let VT = tf.dot( R , QT )
+       return [ U , Z , VT ]
+   });
+   return [U , S , VT ];
+}
+
 async function run() {
-  /*
+   /*
      HOUSEHOLDER, SVD, PCA
-  */
+   */
    const M = [
      [ 22, 10,  2,   3,  7],
      [ 14,  7, 10,   0,  8],
@@ -406,28 +427,40 @@ async function run() {
    ]
    // NEED TYPE CHECKING
    Mtf = tf.tensor2d(M)
-   let [ P , A , QT ] = householder_reduction ( Mtf );
-   let [L,Z,R,U] = LZRU( A )
-   A.print()
-
-   tf.dot(L,U).print() // THIS IS OK
+   let [ P , A , QT ]	= householder_reduction ( Mtf );
+   let [L,Z,R,U]	= LZRU( A )
+   let [lU,lS,lVT]	= luVD(Mtf)
+   tf.dot( L , U ).print() // THIS IS OK
    A.print()
    tf.dot( tf.dot( L  , Z) , R ) .print() // THIS IS OK
    tf.dot( tf.dot( tf.dot( tf.dot( tf.dot( P , skew_eye( Mtf.shape )) , L ) , Z ) , R ) , QT ).print() // FULL RECOVERY
 
+   //
+   // return
+   //
+   let rpca = qrPCA(Mtf)
+
    const safe_palette = [ '#193CBC' , '#1473AF' , '#589ACF' , '#EEE762' , '#E8B84F' , '#EA594E' ];
 
-   rpca = nativePCA( Mtf )
-   const series = [ 'PCA' ]; const serien = [];
-   var rezz = rpca['components'].slice([0,0],[-1,2]).arraySync()
-   for ( var i=0 ; i<rezz.length ; i++ ) {
-      serien[i] =  {'x':rezz[i][0],'y':rezz[i][1]}
+   npca = nativePCA( Mtf ) ;
+   const series = [ 'native PCA','QR PCA' ]; const serie1 = []; const serie2 = [];
+   var rezr = rpca['components'].slice([0,0],[-1,2]).arraySync() ;
+   var rezn = rpca['components'].slice([0,0],[-1,2]).arraySync() ;
+
+   for ( var i=0 ; i<rezr.length ; i++ ) {
+      serie1[i] =  {'x':rezn[i][0],'y':rezn[i][1]};
+      serie2[i] =  {'x':rezr[i][0],'y':rezr[i][1]};
    }
-   const scat_data = {values: [ serien ], series:series}
+   const scat_data = {values: [ serie1,serie2 ], series:series }
    scat_surface = {name:'PCA',tab:'Graphs'}
    tfvis.render.scatterplot( scat_surface , scat_data ,
-	{ seriesColors: [ '#ff0000' ] , xLabel:"C0" , yLabel:'C1' , width:500 , heigth:500 } );
+        { seriesColors: [ safe_palette[5], safe_palette[0] ] ,
+                xLabel:"C0"     , yLabel:'C1'   ,
+                width:500       , height:500    } );
+
+   correlation(Mtf,Mtf).print()
 
 }
 
 run();
+
