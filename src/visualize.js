@@ -1,16 +1,34 @@
+/*
+Copyright 2023 RICHARD TJÖRNHAMMAR
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+//
+const moduleName = "visualize"
 
 async function plotbar() {
 
 const data = [
    { index: 'beer', value: 50 },
+   //{ index: 'beer', value:150 },
    { index: 1, value: 100 },
    { index: 'cheese', value: 150 },
   ];
 
 // Render to visor
 const surface = { name: 'Bar chart', tab: 'Charts' };
-names = ['bar1','bar2','bar3']
-tfvis.render.barchart( surface, data , {color:['#ff0000','#0f0f00','#0000ff']} );
+var names = ['bar1','bar2','bar3']
+tfvis.render.barchart( surface, data , {color:['#ff0000','#1ecd0f','#0f0f00','#0000ff']} );
 
 const series = ['First', 'Mob','Zombies'];
 
@@ -25,7 +43,7 @@ for (let i = 0; i < 100; i++) {
 }
 
 const scat_data = {values: [serie1, serie2, serie3 ], series:series}
-scat_surface = {name:'Scatter',tab:'Graphs'}
+var scat_surface = {name:'Scatter',tab:'Graphs'}
 tfvis.render.scatterplot(scat_surface, scat_data , { seriesColors: ['#ff0000','#0000ff','#f00ff0'] } );
 
 const h_data = {
@@ -72,11 +90,15 @@ tfvis.render.linechart( l_surface, { series:['s1','s2'] , values:l_values} ,
 
 }
 
+export { plotbar } ;
+
+/*
 async function run() {
-  /*
-  HAIRY PLOTTER
-  */
-   plotbar();
+  //
+  // HAIRY PLOTTER
+  //
+  plotbar();
 }
 
 run();
+*/

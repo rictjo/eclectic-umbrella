@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+const moduleName = "deduce"
 //
 function determineMeanAndStddev( data ) {
   const dataMean		= data.mean(0);
@@ -20,9 +21,9 @@ function determineMeanAndStddev( data ) {
   const squaredDiffFromMean	= diffFromMean.square();
   const variance		= squaredDiffFromMean.mean(0);
   const dataStd			= variance.sqrt();
-  return {dataMean, dataStd};
+  return { dataMean, dataStd };
 }
-// export
+//
 function standardizeTensor(data, dataMean, dataStd) {
   return data.sub(dataMean).div(dataStd);
 }
@@ -31,12 +32,13 @@ function standardizeTensor(data, dataMean, dataStd) {
 MY IMPETUOUS-GFA REPO CODES
 https://github.com/richardtjornhammar/impetuous/blob/master/src/impetuous/quantification.py
 */
+
 function indices_of_ranks ( data , axis=0 , pos = -1 ) {
    if ( axis==0 ) {
-     let indexOFranks = tf.topk( Mtf.transpose() , Mtf.shape[axis] ).indices.transpose()
+     let indexOFranks = tf.topk( data.transpose() , data.shape[axis] ).indices.transpose()
      return indexOFranks ;
    } else {
-     let indexOFranks = tf.topk( Mtf , Mtf.shape[axis] ).indices
+     let indexOFranks = tf.topk( data , data.shape[axis] ).indices
      return indexOFranks ;
    }
 }
@@ -69,10 +71,10 @@ function ranktensor1d ( data , ascending = true ) {
     return ( ind )
 }
 
-function ranktensor2d ( data_ , axis = 1 , position = 0 ,
-                ascending = false , retArg = true ) {
-    let fax = data_.gather([position],axis).reshape([-1]);
-    let ind = tf.topk(fax,data_.shape[1-axis]).indices
+function ranktensor2d ( data , axis = 1 , position = 0 ,
+		ascending = false , retArg = true ) {
+    let fax = data.gather([position],axis).reshape([-1]);
+    let ind = tf.topk(fax,data.shape[1-axis]).indices
     if ( ascending ) {
         ind = ind.reverse()
     }
@@ -83,14 +85,24 @@ function ranktensor2d ( data_ , axis = 1 , position = 0 ,
     }
 }
 
+function rank_correlation ( xs , ys , axis=0 , axism=1 , TOL=1E-12 ) {
+  let rcorr = tf.tidy( () => {
+      let rx = rankdata( xs , axis=axis )
+      let ry = rankdata( ys , axis=axis )
+      let rcorr = correlation( rx , ry )
+      return rcorr
+  });
+  return rcorr
+}
+
 function correlation ( xs , ys , axis=0, axism=1, TOL=1E-12 ){
   let corr = tf.tidy( () => {
-   let xm  = xs .mean( axis )
-   let ym  = ys .mean( axis )
-   let xms = xs.sub( xm )
-   let yms = ys.sub( ym )
-   let r = tf.dot(yms,xms.transpose()) .div(  tf.sqrt( tf.outerProduct( yms.mul(yms).sum(axis=axism) , xms.mul(xms).sum(axism) ) ) )
-   return r;
+     let xm  = xs .mean( axis )
+     let ym  = ys .mean( axis )
+     let xms = xs.sub( xm )
+     let yms = ys.sub( ym )
+     let r = tf.dot(xms,yms.transpose()) .div( tf.sqrt( tf.outerProduct( yms.mul(yms).sum(axis=axism) , xms.mul(xms).sum(axism) ) ) )
+     return r;
    });
    return corr;
 }
@@ -98,8 +110,8 @@ function correlation ( xs , ys , axis=0, axism=1, TOL=1E-12 ){
 MY IMPETUOUS-GFA REPO CODES
 https://github.com/richardtjornhammar/impetuous/blob/master/src/impetuous/reducer.py
 */
-function index_value(C,i,j) {
-  let CS	= tf.max( C.slice([i,j],[1,1]) );
+function index_value( C , i , j ) {
+  let CS	= tf.max( C.slice( [i,j] , [1,1] ) );
   // LOOKS STRANGE BUT ONE LESS DATASYNC
   // console.log( C.arraySync()[i][j]==tf.max(CS).dataSync() ); // ARGH...
   return ( CS );
@@ -113,6 +125,7 @@ function kth_householder( A , k ) {
   var k1	= k+1 ;
   var Op5	= tf.scalar(0.5);
   let s_	= index_value( B , k1 , k0 ) ;
+  var axis      = 0;
   var alpha	= tf.scalar( 2 ).mul( s_.less(tf.scalar(0.0)).toInt() ).sub(1);
   alpha = alpha.mul( tf.sqrt( tf.sum(B.transpose().slice([k0,k1],[1,-1]).square()) ) ) ;
   var r = tf.sqrt( Op5.mul( alpha.square().sub( alpha.mul(index_value(B,k1,k0)) ) ) );
@@ -199,15 +212,15 @@ function householder_reduction ( Mtf ) {
 }
 
 function listToMatrix( a ) {
-     A = a.map( (_,i) =>
+   let A = a.map( (_,i) =>
          a.map( (v,j) =>
             i==j ? v: 0 ));
    return ( A );
 }
 
-function matrixToVector(M,ishift=0) {
+function matrixToVector( M , ishift=0 ) {
     // TYPE CHECKING NEEDED. JS WHAT CAN YOU DO...
-    A = tf.tensor2d(M);
+    let A = tf.tensor2d(M);
     var n_ = tf.reshape( tf.min( A.shape ) , [1] ).dataSync();
     if ( ishift < 0 ) {
         A=A.transpose();
@@ -220,7 +233,7 @@ function matrixToVector(M,ishift=0) {
 }
 
 function tf_sgn( a ) {
-   s = a.dataSync().map( ( v )  => v>=0?1:-1 )
+   let s = a.dataSync().map( ( v )  => v>=0?1:-1 )
    return ( tf.tensor1d(s) )
 }
 
@@ -230,7 +243,7 @@ function fat_tridiagonal ( sub , main , sup ) {
    sub = sub.arraySync();
    const n_ = tf.reshape( tf.min( main.shape ) , [1] ).dataSync();
    main = main.arraySync();
-   FAT = main.map( (w,i) =>
+   let FAT = main.map( (w,i) =>
          main.map( (v,j) =>
            i==j ? w : j == i+1 & j<n_ ? sup[j-1]  : j == i-1 & j+1>0? sub[j] :0  )) ;
    return ( tf.tensor2d(FAT) );
@@ -238,14 +251,14 @@ function fat_tridiagonal ( sub , main , sup ) {
 
 function skew_eye(shape) {
    let BT = tf.tidy( () => {
-   // BUFFERS ARE MUTABLE. TENSORS ARE NOT
-   let nm = shape
-   var m0 = nm[0] <= nm[1] ? nm[0] : nm[1]
-   const buffer = tf.buffer(shape);
-   for ( var i=0 ; i<m0 ; i++ ) {
-      buffer.set( 1, i, i );
-   }
-   return ( buffer.toTensor() );
+     // BUFFERS ARE MUTABLE. TENSORS ARE NOT
+     let nm = shape
+     var m0 = nm[0] <= nm[1] ? nm[0] : nm[1]
+     const buffer = tf.buffer(shape);
+     for ( var i=0 ; i<m0 ; i++ ) {
+        buffer.set( 1, i, i );
+     }
+     return ( buffer.toTensor() );
    });
    return ( BT );
 }
@@ -268,20 +281,20 @@ function diagonalize_tridiagonal( tridiagonal , maxiter=1000 , TOL=1E-10 , maxi2
    // THIS IS A SLOW WAY OF DIAGONALIZING A TRIDIAGONAL MATRIX
    //
    let [G,S,HT] = tf.tidy( () => {
-
+   let ishift=0
    let S = tridiagonal.clone()
    let nm = S.shape
    var m0 = nm[0] <= nm[1] ? nm[0] : nm[1] - 1
-   sI = skew_eye ( [ nm[0] , nm[0] ] );
-   tI = skew_eye ( [ nm[1] , nm[1] ] );
-   zI = skew_eye ( nm );
+   let sI = skew_eye ( [ nm[0] , nm[0] ] );
+   let tI = skew_eye ( [ nm[1] , nm[1] ] );
+   let zI = skew_eye ( nm );
    let GI = tf.clone(sI) ;
    let HI = tf.clone(tI) ;
    for ( var k=0 ; k<maxiter ; k++ ) {
       for ( var i=0  ; i<m0 ; i++ ) {
-         sI_ = sI .clone() ;
-         tI_ = tI .clone() ;
-         A   = S.slice( [i,i] , [2,2] )
+         let sI_ = sI .clone() ;
+         let tI_ = tI .clone() ;
+         let A   = S.slice( [i,i] , [2,2] )
          let [G,Z,H] = diagonalize_2b2 ( A , TOL=TOL );
          sI_ = set_values( G.sub(tf.eye(2)).dataSync() , [[i,i],[i,i+1],[i+1,i],[i+1,i+1]] , sI_.shape  ).add(tf.eye( sI_.shape[0] ) )
          tI_ = set_values( H.sub(tf.eye(2)).dataSync() , [[i,i],[i,i+1],[i+1,i],[i+1,i+1]] , tI_.shape  ).add(tf.eye( tI_.shape[0] ) )
@@ -289,14 +302,14 @@ function diagonalize_tridiagonal( tridiagonal , maxiter=1000 , TOL=1E-10 , maxi2
          HI  = tf.dot( tI_ , HI )
          S = tf.dot( tf.dot( sI_ , S ) , tI_.transpose() )
          var n = m0 + 1 - i ;
-         ran = tf.range(2,n).dataSync(); // ARGH ...
+         let ran = tf.range(2,n).dataSync(); // ARGH ...
          for ( var jr=0 ; jr<ran.length ; jr++ ) {
-            BS = S.bufferSync() ;
+            let BS = S.bufferSync() ;
             var ii      = i;
             var jj      = i + ran[jr];
             var idx     = [ [ii,ii] , [ii,jj] , [jj,ii] , [jj,jj] ];
             var jdx     = [ (0,0),(0,1),(1,0),(1,1) ];
-            A_ = tf.tensor2d( [ BS.get(ii,ii) , BS.get(ii,jj) , BS.get(jj,ii), BS.get(jj,jj)] , [2,2] )
+            let A_ = tf.tensor2d( [ BS.get(ii,ii) , BS.get(ii,jj) , BS.get(jj,ii), BS.get(jj,jj)] , [2,2] )
             let [G,Z,H] = diagonalize_2b2 ( A_ , maxiter=maxi22, TOL=TOL22 );
             sI_ = set_values( G.sub(tf.eye(2)).dataSync() , idx , sI_.shape  ).add(tf.eye( sI_.shape[0] ) ); // ARGH ...
             tI_ = set_values( H.sub(tf.eye(2)).dataSync() , idx , tI_.shape  ).add(tf.eye( tI_.shape[0] ) ); // ARGH ...
@@ -312,7 +325,7 @@ function diagonalize_tridiagonal( tridiagonal , maxiter=1000 , TOL=1E-10 , maxi2
    }
    return [ GI.transpose(),S,HI ] ;
    });
-   return [  G,S,HT ] ;
+   return [ G , S , HT ] ;
 }
 
 function nativeSVD( M ) {
@@ -326,16 +339,16 @@ function nativeSVD( M ) {
 }
 
 function nativePCA( data_tf , axis=0 ) {
-   res = determineMeanAndStddev( data_tf ,  axis=axis )
-   std_dat = standardizeTensor( data_tf, res['dataMean'], res['dataStd'] )
+   let res = determineMeanAndStddev( data_tf ,  axis=axis )
+   let std_dat = standardizeTensor( data_tf, res['dataMean'], res['dataStd'] )
    let [feature_coordinates,singular_values,components] = nativeSVD( std_dat )
    components = components.transpose()
    return { feature_coordinates , singular_values , components };
 }
 
 function qrPCA( data_tf , axis=0 ) {
-   res = determineMeanAndStddev( data_tf ,  axis=axis )
-   std_dat = standardizeTensor( data_tf, res['dataMean'], res['dataStd'] )
+   let res = determineMeanAndStddev( data_tf ,  axis=axis )
+   let std_dat = standardizeTensor( data_tf, res['dataMean'], res['dataStd'] )
    let [feature_coordinates,singular_values,components] = qrSVD( std_dat )
    components = components.transpose()
    return { feature_coordinates , singular_values , components };
@@ -383,7 +396,7 @@ function diagonalize_2b2( B , TOL = 1E-7 , maxiter=100 , bVerbose=false ) {
 
 function qrSVD( A , maxiter=-100 , TOL=1E-5 ) {
     let [ U,S,VT ] = tf.tidy( () => { // TIDIER ?
-
+    let ishift=0
    if(maxiter<0) {
       maxiter = 1*A.shape[0]*A.shape[1]
    }
@@ -420,15 +433,15 @@ function LZRU( tridiagonal ) {
    var vk = 0 ; var bk = 0 ; var lk = 0; var dk = 0;
    var l = []; var v = []; var o = [];
 
-   b = tf.tensor1d( matrixToVector( AS ,  0 ).dataSync() )
-   c = tf.tensor1d( matrixToVector( AS ,  1 ).dataSync() )
-   a = tf.tensor1d( matrixToVector( AS , -1 ).dataSync() )
+   let b = tf.tensor1d( matrixToVector( AS ,  0 ).dataSync() )
+   let c = tf.tensor1d( matrixToVector( AS ,  1 ).dataSync() )
+   let a = tf.tensor1d( matrixToVector( AS , -1 ).dataSync() )
 
-   a_ = a.dataSync();
-   b_ = b.dataSync();
-   c_ = c.dataSync();
+   let a_ = a.dataSync();
+   let b_ = b.dataSync();
+   let c_ = c.dataSync();
 
-   vp = b_[0] ; v.push(vp)
+   let vp = b_[0] ; v.push(vp)
    for ( var i=0 ; i<a_.length ; i++ ) { // LU DECOMPOSITION
       bk = b_[ i+1 ]; lk = vp==0 ? 0 : a_[i]/vp ;
       vk = bk - lk * c_[i];
@@ -478,7 +491,7 @@ async function run() {
      [  4,  5,  0,  -2,  2]
    ]
    // NEED TYPE CHECKING
-   Mtf = tf.tensor2d(M)
+   let Mtf = tf.tensor2d(M)
    let [ P , A , QT ]	= householder_reduction ( Mtf );
    let [L,Z,R,U]	= LZRU( A )
    let [lU,lS,lVT]	= luVD(Mtf)
@@ -491,10 +504,8 @@ async function run() {
    // return
    //
    let rpca = qrPCA(Mtf)
-
    const safe_palette = [ '#193CBC' , '#1473AF' , '#589ACF' , '#EEE762' , '#E8B84F' , '#EA594E' ];
-
-   npca = nativePCA( Mtf ) ;
+   let npca = nativePCA( Mtf ) ;
    const series = [ 'native PCA','QR PCA' ]; const serie1 = []; const serie2 = [];
    var rezr = rpca['components'].slice([0,0],[-1,2]).arraySync() ;
    var rezn = rpca['components'].slice([0,0],[-1,2]).arraySync() ;
@@ -503,16 +514,61 @@ async function run() {
       serie1[i] =  {'x':rezn[i][0],'y':rezn[i][1]};
       serie2[i] =  {'x':rezr[i][0],'y':rezr[i][1]};
    }
+
    const scat_data = {values: [ serie1,serie2 ], series:series }
-   scat_surface = {name:'PCA',tab:'Graphs'}
+   let scat_surface = {name:'PCA',tab:'Graphs'}
    tfvis.render.scatterplot( scat_surface , scat_data ,
         { seriesColors: [ safe_palette[5], safe_palette[0] ] ,
                 xLabel:"C0"     , yLabel:'C1'   ,
                 width:500       , height:500    } );
 
-   correlation(Mtf,Mtf).print()
+   Mtf.print()
+   console.log('----')
 
+   let axis = 0;
+
+   indices_of_ranks( Mtf,axis=0 ).print()
+   indices_of_ranks( Mtf,axis=1 ).print()
+
+   rankdata( Mtf,axis=0 ).print()
+   rankdata( Mtf,axis=1 ).print()
+
+   let CC = correlation( Mtf,Mtf )
+   console.log( 'Pearson' )
+   CC .print()
+   let RC = rank_correlation(Mtf,Mtf)
+   console.log( 'Spearman' )
+   RC.print()
 }
 
-run();
+export {
+determineMeanAndStddev ,
+standardizeTensor ,
+indices_of_ranks  ,
+rankdata     ,
+ranktensor1d ,
+ranktensor2d ,
+correlation  ,
+index_value  ,
+kth_householder ,
+rich_rot ,
+householder_reduction ,
+listToMatrix ,
+matrixToVector ,
+tf_sgn ,
+fat_tridiagonal ,
+skew_eye   ,
+set_values ,
+diagonalize_tridiagonal ,
+nativeSVD ,
+nativePCA ,
+qrPCA ,
+diagonalize_2b2 ,
+qrSVD ,
+LZRU  ,
+luVD  ,
+run
+};
+
+//run();
 
