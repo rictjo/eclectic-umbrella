@@ -6,7 +6,184 @@
   <body>
     <h4>TF-JS Hacks. Do some visualisations and calculate a Householder<hr/></h4>
     <div id="micro-out-div"> Lorem Ipsum </div>
-    <script src="./src/deduce.js"> </script>
-    <script src="./src/visualize.js"></script>
+
+    <script type="module" src="main.js"></script>
+
+    <script src="//d3js.org/d3.v4.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.js">
+    // https://www.w3schools.com/js/js_graphics_chartjs.asp
+    </script> 
+
+    <script src="https://www.gstatic.com/charts/loader.js">
+    // GOOGLE CHART
+    </script>
+
+    <script src='https://cdn.plot.ly/plotly-2.27.0.min.js'>
+    // https://plotly.com/javascript/
+    </script>
+
+<svg id="myPlot" style="width:500px;height:500px"></svg>
+<canvas id="myChart" style="width:100%;max-width:600px"></canvas>
+<canvas id="myDoughnutChart" style="width:100%;max-width:600px"></canvas>
+<canvas id="myManyLinesChart" style="width:100%;max-width:600px"></canvas>
+<div id="myGoogleChart" style="width:100%; max-width:600px; height:500px;"> </div>
+<div id="myPlotlyDiv" style="width:500px;height:500px"></div>
+
+<script>
+d3.select("body").append("p").text("Hello World!");
+// https://www.w3schools.com/js/js_graphics_d3js.asp
+// Set Dimensions
+const xSize = 500;
+const ySize = 500;
+const margin = 40;
+const xMax = xSize - margin*2;
+const yMax = ySize - margin*2;
+
+// Create Random Points
+const numPoints = 100;
+const data = [];
+for (let i = 0; i < numPoints; i++) {
+  data.push([Math.random() * xMax, Math.random() * yMax]);
+}
+
+// Append SVG Object to the Page
+const svg = d3.select("#myPlot")
+  .append("svg")
+  .append("g")
+  .attr("transform","translate(" + margin + "," + margin + ")");
+
+// X Axis
+const x = d3.scaleLinear()
+  .domain([0, 500])
+  .range([0, xMax]);
+
+svg.append("g")
+  .attr("transform", "translate(0," + yMax + ")")
+  .call(d3.axisBottom(x));
+
+// Y Axis
+const y = d3.scaleLinear()
+  .domain([0, 500])
+  .range([ yMax, 0]);
+
+svg.append("g")
+  .call(d3.axisLeft(y));
+
+// Dots
+svg.append('g')
+  .selectAll("dot")
+  .data(data).enter()
+  .append("circle")
+  .attr("cx", function (d) { return d[0] } )
+  .attr("cy", function (d) { return d[1] } )
+  .attr("r", 3)
+  .style("fill", "Red");
+
+// CHART PART
+const xValues = ["Italy", "France", "Spain", "USA", "Argentina"];
+const yValues = [55, 49, 44, 24, 15];
+const barColors = ["red", "green","blue","orange","brown"];
+
+new Chart("myChart", {
+  type: "pie",
+  data: {
+    labels: xValues,
+    datasets: [{
+      backgroundColor: barColors,
+      data: yValues
+    }]
+  },
+  options: {
+    title: {
+      display: true,
+      text: "World Wide Wine Production"
+    }
+  }
+});
+
+new Chart("myDoughnutChart", {
+  type: "doughnut",
+  data: {
+    labels: xValues,
+    datasets: [{
+      backgroundColor: barColors,
+      data: yValues
+    }]
+  },
+  options: {
+    title: {
+      display: true,
+      text: "World Wide Wine Production"
+    }
+  }
+});
+
+const xValues_ = [100,200,300,400,500,600,700,800,900,1000];
+
+new Chart("myManyLinesChart", {
+  type: "line",
+  data: {
+    labels: xValues_,
+    datasets: [{
+      data: [860,1140,1060,1060,1070,1110,1330,2210,7830,2478],
+      borderColor: "red",
+      fill: false
+    },{
+      data: [1600,1700,1700,1900,2000,2700,4000,5000,6000,7000],
+      borderColor: "green",
+      fill: false
+    },{
+      data: [300,700,2000,5000,6000,4000,2000,1000,200,100],
+      borderColor: "blue",
+      fill: false
+    }]
+  },
+  options: {
+    legend: {display: false}
+  }
+});
+
+
+
+google.charts.load('current', {'packages':['corechart']});
+google.charts.setOnLoadCallback(drawChart);
+
+function drawChart() {
+
+// Set Data
+const data = google.visualization.arrayToDataTable([
+  ['Contry', 'Mhl'],
+  ['Italy',54.8],
+  ['France',48.6],
+  ['Spain',44.4],
+  ['USA',23.9],
+  ['Argentina',14.5]
+]);
+
+// Set Options
+const options = {
+  title:'World Wide Wine Production',
+  is3D:true
+};
+
+// Draw
+const chart = new google.visualization.PieChart(document.getElementById('myGoogleChart'));
+chart.draw(data, options);
+}
+
+
+var data_pl = [
+  {
+    z: [[1, 20, 30], [20, 1, 60], [30, 60, 1]],
+    type: 'heatmap'
+  }
+];
+
+Plotly.newPlot('myPlotlyDiv', data_pl);
+
+</script>
+
+
+
   </body>
 </html>
